@@ -33,13 +33,13 @@ public class PlayerCharacterAnimator : MonoBehaviour
 
     void OnEnable()
     {
-        _thirdPersonMovement.Idle += OnIdle;
-        _thirdPersonMovement.StartRunning += OnStartRunning;
+        //_thirdPersonMovement.Idle += OnIdle;
+        //_thirdPersonMovement.StartRunning += OnStartRunning;
     }
     
     void OnDisable()
     {
-        _thirdPersonMovement.Idle -= OnIdle;
-        _thirdPersonMovement.StartRunning -= OnStartRunning;
+        //_thirdPersonMovement.Idle -= OnIdle;
+        //_thirdPersonMovement.StartRunning -= OnStartRunning;
     }
 }
