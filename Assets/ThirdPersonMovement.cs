@@ -58,18 +58,17 @@ public class ThirdPersonMovement : MonoBehaviour
             if (jump >= 0.1f)
             {
                 y_vel = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y);
-                _animator.SetBool("Jump", true);
+                _animator.SetBool("Landed", false);
             }
             else if(y_vel != 0f)
             {
                 y_vel = 0f;
-                _animator.SetBool("Jump", false);
+                _animator.SetBool("Landed", true);
             }
         }
         else
         {
             y_vel += Physics.gravity.y * Time.deltaTime;
-            _animator.SetBool("Jump", false);
         }
 
         Vector3 lateral = move * speed;
