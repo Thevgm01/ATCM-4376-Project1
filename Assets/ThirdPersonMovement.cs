@@ -6,9 +6,6 @@ using System;
 [RequireComponent(typeof(CharacterController))]
 public class ThirdPersonMovement : MonoBehaviour
 {
-    public event Action Idle = delegate { };
-    public event Action StartRunning = delegate { };
-
     bool _isMoving = false;
 
     CharacterController _controller;
@@ -25,20 +22,32 @@ public class ThirdPersonMovement : MonoBehaviour
 
     public float turnSmooth = 0.1f;
     private float turnSmoothVelocity;
-    private float telekinesisAngle = 0;
+    private float currentTelekinesisAngle = 0;
     private float telekinesisTurnSmoothVelocity;
 
+    public float telekinesisLaunchForce = 1000;
     private bool usingTelekinesis = false;
+    private GameObject telekinesisTarget;
+    private Rigidbody telekinesisRB;
+    private Transform telekinesisGoal;
+    public ParticleSystem telekinesisParticles;
+    public AudioClip startTelekinesisSound;
+    public AudioClip stopTelekinesisSound;
+
+    private AudioSource audioSource;
 
     void Awake()
     {
         _controller = GetComponent<CharacterController>();
         _animator = GetComponent<Animator>();
+        telekinesisGoal = transform.Find("Telekinesis Point");
+        audioSource = GetComponent<AudioSource>();
     }
 
     void Start()
     {
-        Idle?.Invoke();
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     // Update is called once per frame
@@ -53,6 +62,7 @@ public class ThirdPersonMovement : MonoBehaviour
         {
             usingTelekinesis = false;
             _animator.SetTrigger("Telekinesis Off");
+            ReleaseTelekinesis();
         }
         _animator.SetBool("Telekinesis", usingTelekinesis);
 
@@ -66,25 +76,16 @@ public class ThirdPersonMovement : MonoBehaviour
         Vector3 move = Vector3.zero;
         if(direction.magnitude >= 0.1f)
         {
-
-            float targetMoveAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _camera.eulerAngles.y;
+            float moveAngle = Mathf.Atan2(direction.x, direction.z);
+            float desiredFaceAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _camera.eulerAngles.y;
 
             float angle;
             if (usingTelekinesis)
             {
-                float targetFaceAngle = 0f;
-                if ((horizontalInput > 0.1f && verticalInput > 0.1f) ||
-                    (horizontalInput < -0.1f && verticalInput < -0.1f))
-                    targetFaceAngle = 45f;
-                else if
-                   ((horizontalInput > 0.1f && verticalInput < -0.1f) ||
-                    (horizontalInput < -0.1f && verticalInput > 0.1f))
-                    targetFaceAngle = -45f;
-                //angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, _camera.eulerAngles.y + targetFaceAngle, ref turnSmoothVelocity, turnSmooth);
-                float targetTelekinesisAngle = Mathf.Atan2(direction.x, direction.z) / Mathf.PI;
-                if (telekinesisAngle < 0 && targetTelekinesisAngle == 1) targetTelekinesisAngle = -1;
-                telekinesisAngle = Mathf.SmoothDampAngle(telekinesisAngle, targetTelekinesisAngle, ref telekinesisTurnSmoothVelocity, turnSmooth);
-                _animator.SetFloat("Direction", telekinesisAngle);
+                float desiredTelekinesisAngle = moveAngle / Mathf.PI;
+                if (currentTelekinesisAngle < 0 && desiredTelekinesisAngle == 1) desiredTelekinesisAngle = -1;
+                currentTelekinesisAngle = Mathf.SmoothDampAngle(currentTelekinesisAngle, desiredTelekinesisAngle, ref telekinesisTurnSmoothVelocity, turnSmooth);
+                _animator.SetFloat("Direction", currentTelekinesisAngle);
 
                 angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, _camera.eulerAngles.y, ref turnSmoothVelocity, turnSmooth);
             }
@@ -96,11 +97,11 @@ public class ThirdPersonMovement : MonoBehaviour
                     _animator.SetBool("Sprint", true);
                 }
 
-                angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetMoveAngle, ref turnSmoothVelocity, turnSmooth);
+                angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, desiredFaceAngle, ref turnSmoothVelocity, turnSmooth);
             }
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
-            move = Quaternion.Euler(0f, targetMoveAngle, 0f) * Vector3.forward;
+            move = Quaternion.Euler(0f, desiredFaceAngle, 0f) * Vector3.forward;
         }
 
         if (sprintTime > 0 && (usingTelekinesis || !Input.GetKey(KeyCode.LeftShift)))
@@ -130,6 +131,7 @@ public class ThirdPersonMovement : MonoBehaviour
         {
             y_vel += Physics.gravity.y * Time.deltaTime;
         }
+        _animator.SetFloat("Vertical Speed", y_vel);
 
         Vector3 lateral = move * speed * Mathf.Lerp(1, sprintSpeedMult, sprintTime);
         Vector3 vertical = new Vector3(0, y_vel, 0);
@@ -137,17 +139,49 @@ public class ThirdPersonMovement : MonoBehaviour
         _controller.Move((lateral + vertical) * Time.deltaTime);
     }
 
-    void SetMoving(bool move)
+    void FixedUpdate()
     {
-        if(move && !_isMoving)
+        if (usingTelekinesis)
         {
-            StartRunning?.Invoke();
-            _isMoving = true;
+            HandleTelekinesis();
         }
-        else if(!move && _isMoving)
+    }
+
+    void HandleTelekinesis()
+    {
+        if(telekinesisTarget == null)
         {
-            Idle?.Invoke();
-            _isMoving = false;
+            Physics.Raycast(_camera.position, _camera.forward, out var ray);
+            if(ray.collider != null && ray.collider.tag != "Ground")
+            {
+                telekinesisRB = ray.collider.GetComponent<Rigidbody>();
+                if(telekinesisRB != null)
+                {
+                    telekinesisTarget = ray.collider.gameObject;
+                    telekinesisRB.useGravity = false;
+                    telekinesisRB.angularVelocity = UnityEngine.Random.insideUnitSphere;
+                    telekinesisParticles.Play();
+                    audioSource.PlayOneShot(startTelekinesisSound);
+                }
+            }
+        }
+
+        if(telekinesisTarget != null)
+        {
+            telekinesisTarget.transform.position = Vector3.Lerp(telekinesisTarget.transform.position, telekinesisGoal.position, 0.15f / telekinesisRB.mass);
+        }
+    }
+
+    void ReleaseTelekinesis()
+    {
+        if(telekinesisTarget != null)
+        {
+            telekinesisRB.useGravity = true;
+            telekinesisRB.velocity = _camera.forward * telekinesisLaunchForce / telekinesisRB.mass;
+            telekinesisTarget = null;
+            telekinesisRB = null;
+            telekinesisParticles.Stop();
+            audioSource.PlayOneShot(stopTelekinesisSound);
         }
     }
 }
