@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class AbilityTelekinesis : MonoBehaviour, Ability
+public class AbilityTelekinesis : MonoBehaviour, IAbility
 {
     public Transform _camera;
 
@@ -26,12 +26,6 @@ public class AbilityTelekinesis : MonoBehaviour, Ability
         telekinesisDestination = transform.Find("Telekinesis Point");
 
         grabbableObjectsMask = LayerMask.GetMask("Grabbable");
-    }
-
-    // Start is called before the first frame update
-    void Start()
-    {
-        
     }
 
     void FixedUpdate()
@@ -129,5 +123,10 @@ public class AbilityTelekinesis : MonoBehaviour, Ability
         }
 
         rb.collisionDetectionMode = originalMode;
+    }
+
+    void OnDisable()
+    {
+        FinishCast();
     }
 }

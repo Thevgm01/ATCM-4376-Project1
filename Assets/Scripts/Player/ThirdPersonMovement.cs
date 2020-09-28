@@ -6,6 +6,7 @@ using System;
 [RequireComponent(typeof(CharacterController))]
 public class ThirdPersonMovement : MonoBehaviour
 {
+    bool _alive = true;
     bool _isMoving = false;
 
     CharacterController _controller;
@@ -29,7 +30,9 @@ public class ThirdPersonMovement : MonoBehaviour
     private float telekinesisTurnSmoothVelocity;
 
     private bool usingTelekinesis = false;
-    AbilityTelekinesis telekinesis;
+    AbilityTelekinesis _telekinesis;
+
+    Health _health;
 
     private Vector3 movement;
     private Vector3 velocity;
@@ -38,7 +41,10 @@ public class ThirdPersonMovement : MonoBehaviour
     {
         _controller = GetComponent<CharacterController>();
         _animator = GetComponent<Animator>();
-        telekinesis = GetComponent<AbilityTelekinesis>();
+        _telekinesis = GetComponent<AbilityTelekinesis>();
+        _health = GetComponent<Health>();
+
+        _health.onKilled += Die;
     }
 
     void Start()
@@ -50,27 +56,29 @@ public class ThirdPersonMovement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if(Input.GetMouseButtonDown(0))
+        if (_alive)
+        {
+            HandleTelekinesis();
+            HandleMovement();
+        }
+        HandleGravity();
+    }
+
+    void HandleTelekinesis()
+    {
+        if (Input.GetMouseButtonDown(0))
         {
             usingTelekinesis = true;
-            telekinesis.StartCast();
+            _telekinesis.StartCast();
             _animator.SetTrigger("Telekinesis On");
         }
-        else if(Input.GetMouseButtonUp(0))
+        else if (Input.GetMouseButtonUp(0))
         {
             usingTelekinesis = false;
-            telekinesis.FinishCast();
+            _telekinesis.FinishCast();
             _animator.SetTrigger("Telekinesis Off");
         }
         _animator.SetBool("Telekinesis", usingTelekinesis);
-
-        HandleMovement();
-        HandleJump();
-    }
-
-    void FixedUpdate()
-    {
-        //if (usingTelekinesis) HandleTelekinesis();
     }
 
     void HandleMovement()
@@ -132,12 +140,12 @@ public class ThirdPersonMovement : MonoBehaviour
         _animator.SetFloat("Speed", lateral.magnitude);
     }
 
-    void HandleJump()
+    void HandleGravity()
     {
         float jumpInput = Input.GetAxisRaw("Jump");
         if (_controller.isGrounded)
         {
-            if (jumpInput >= 0.1f)
+            if (_alive && jumpInput >= 0.1f)
             {
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y);
                 _animator.SetTrigger("Jump");
@@ -151,5 +159,19 @@ public class ThirdPersonMovement : MonoBehaviour
         }
         velocity.y += Physics.gravity.y * Time.deltaTime;
         _animator.SetFloat("Vertical Speed", velocity.y);
+    }
+
+    void Die()
+    {
+        if (_alive)
+        {
+            _alive = false;
+            _telekinesis.enabled = false;
+
+            int numDeathAnimations = speed > 0.1f ? 6 : 5;
+
+            _animator.SetFloat("Death Animation", UnityEngine.Random.Range(0, numDeathAnimations));
+            _animator.SetTrigger("Die");
+        }
     }
 }

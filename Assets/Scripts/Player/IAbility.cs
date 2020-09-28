@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-interface Ability
+interface IAbility
 {
     void StartCast();
     void FinishCast();
