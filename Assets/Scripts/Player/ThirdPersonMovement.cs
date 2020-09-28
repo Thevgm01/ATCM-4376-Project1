@@ -9,16 +9,16 @@ public class ThirdPersonMovement : MonoBehaviour
     bool _alive = true;
     bool _isMoving = false;
 
+    FootTracker _feet;
+
     CharacterController _controller;
     Animator _animator;
     public Transform _camera;
 
     public Collider footCollider;
-    private bool isGrounded = false;
 
     public float speed = 6f;
     public float jumpHeight = 5f;
-    private float velocityy = 0f;
 
     public float sprintSpeedMult = 1.5f;
     private float sprintTime = 0;
@@ -34,11 +34,15 @@ public class ThirdPersonMovement : MonoBehaviour
 
     Health _health;
 
-    private Vector3 movement;
     private Vector3 velocity;
+
+    public AudioClip[] footstepSounds;
+    public float distancePerFootstep;
+    float curFootstepDistance;
 
     void Awake()
     {
+        _feet = GetComponentInChildren<FootTracker>();
         _controller = GetComponent<CharacterController>();
         _animator = GetComponent<Animator>();
         _telekinesis = GetComponent<AbilityTelekinesis>();
@@ -137,13 +141,23 @@ public class ThirdPersonMovement : MonoBehaviour
         Vector3 vertical = new Vector3(0, velocity.y, 0);
         _controller.Move((lateral + vertical) * Time.deltaTime);
 
+        if (_feet.grounded)
+        {
+            curFootstepDistance += lateral.magnitude * Time.deltaTime;
+            if (curFootstepDistance >= distancePerFootstep)
+            {
+                curFootstepDistance -= distancePerFootstep;
+                AudioHelper.PlayClip2D(footstepSounds[UnityEngine.Random.Range(0, footstepSounds.Length)], 0.25f);
+            }
+        }
+
         _animator.SetFloat("Speed", lateral.magnitude);
     }
 
     void HandleGravity()
     {
         float jumpInput = Input.GetAxisRaw("Jump");
-        if (_controller.isGrounded)
+        if (_feet.grounded)
         {
             if (_alive && jumpInput >= 0.1f)
             {
@@ -154,6 +168,7 @@ public class ThirdPersonMovement : MonoBehaviour
             else if (velocity.y < 0f)
             {
                 velocity.y = 0;
+                _animator.ResetTrigger("Jump");
                 _animator.SetBool("Landed", true);
             }
         }

@@ -17,7 +17,10 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
     private Transform telekinesisDestination;
     public ParticleSystem telekinesisParticles;
     public AudioClip startTelekinesisSound;
+    public AudioClip holdTelekinesisSound;
     public AudioClip stopTelekinesisSound;
+
+    AudioSource holdTelekinesisSource;
 
     LayerMask grabbableObjectsMask;
 
@@ -84,12 +87,26 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
             telekinesisRB.angularVelocity = UnityEngine.Random.insideUnitSphere * 10;
             //telekinesisParticles.Play();
             AudioHelper.PlayClip2D(startTelekinesisSound, 1f);
+            holdTelekinesisSource = AudioHelper.PlayClip2D(holdTelekinesisSound, 0f, false);
+            holdTelekinesisSource.pitch /= Mathf.Sqrt(telekinesisRB.mass);
+            holdTelekinesisSource.loop = true;
+            StartCoroutine("RaiseHoldVolume");
+        }
+    }
+
+    IEnumerator RaiseHoldVolume()
+    {
+        while(holdTelekinesisSource != null && holdTelekinesisSource.volume < 0.25f)
+        {
+            holdTelekinesisSource.volume += 0.0005f;
+            yield return null;
         }
     }
 
     public void StartCast()
     {
         casting = true;
+        TryGrab();
     }
 
     public void FinishCast()
@@ -106,6 +123,7 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
             telekinesisRB = null;
             //telekinesisParticles.Stop();
             AudioHelper.PlayClip2D(stopTelekinesisSound, 1f);
+            Destroy(holdTelekinesisSource.gameObject);
         }
     }
 
