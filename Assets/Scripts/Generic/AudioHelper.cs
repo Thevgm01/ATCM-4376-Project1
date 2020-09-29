@@ -4,6 +4,10 @@ using UnityEngine;
 
 public static class AudioHelper
 {
+    public static AudioSource PlayRandomClip2DFromArray(AudioClip[] clips, float volume)
+    {
+        return PlayClip2D(clips[UnityEngine.Random.Range(0, clips.Length)], volume);
+    }
     public static AudioSource PlayClip2D(AudioClip clip, float volume) { return PlayClip2D(clip, volume, true); }
     public static AudioSource PlayClip2D(AudioClip clip, float volume, bool destroyWhenDone)
     {

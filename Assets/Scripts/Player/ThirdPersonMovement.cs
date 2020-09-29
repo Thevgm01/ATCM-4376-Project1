@@ -36,9 +36,14 @@ public class ThirdPersonMovement : MonoBehaviour
 
     private Vector3 velocity;
 
+    public AudioClip[] jumpSounds;
+
     public AudioClip[] footstepSounds;
     public float distancePerFootstep;
     float curFootstepDistance;
+
+    public AudioClip[] hurtSounds;
+    public AudioClip[] deathSounds;
 
     void Awake()
     {
@@ -48,6 +53,7 @@ public class ThirdPersonMovement : MonoBehaviour
         _telekinesis = GetComponent<AbilityTelekinesis>();
         _health = GetComponent<Health>();
 
+        _health.onDamaged += Damaged;
         _health.onKilled += Die;
     }
 
@@ -147,7 +153,7 @@ public class ThirdPersonMovement : MonoBehaviour
             if (curFootstepDistance >= distancePerFootstep)
             {
                 curFootstepDistance -= distancePerFootstep;
-                AudioHelper.PlayClip2D(footstepSounds[UnityEngine.Random.Range(0, footstepSounds.Length)], 0.25f);
+                AudioHelper.PlayRandomClip2DFromArray(footstepSounds, 1f);
             }
         }
 
@@ -159,21 +165,32 @@ public class ThirdPersonMovement : MonoBehaviour
         float jumpInput = Input.GetAxisRaw("Jump");
         if (_feet.grounded)
         {
-            if (_alive && jumpInput >= 0.1f)
+            if (_alive && jumpInput >= 0.1f && velocity.y <= 0f)
             {
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y);
                 _animator.SetTrigger("Jump");
                 _animator.SetBool("Landed", false);
+                AudioHelper.PlayRandomClip2DFromArray(jumpSounds, 0.5f);
             }
             else if (velocity.y < 0f)
             {
+                if(velocity.y < -1f)
+                {
+                    _animator.ResetTrigger("Jump");
+                    _animator.SetBool("Landed", true);
+                    AudioHelper.PlayRandomClip2DFromArray(jumpSounds, 0.5f);
+                }
                 velocity.y = 0;
-                _animator.ResetTrigger("Jump");
-                _animator.SetBool("Landed", true);
             }
         }
         velocity.y += Physics.gravity.y * Time.deltaTime;
         _animator.SetFloat("Vertical Speed", velocity.y);
+    }
+
+    void Damaged(int newHP)
+    {
+        EZCameraShake.CameraShaker.Instance.ShakeOnce(5, 5, 0, 0.5f);
+        AudioHelper.PlayRandomClip2DFromArray(hurtSounds, 1f);
     }
 
     void Die()
@@ -185,8 +202,12 @@ public class ThirdPersonMovement : MonoBehaviour
 
             int numDeathAnimations = speed > 0.1f ? 6 : 5;
 
+            EZCameraShake.CameraShaker.Instance.ShakeOnce(5, 5, 0, 0.5f);
+
             _animator.SetFloat("Death Animation", UnityEngine.Random.Range(0, numDeathAnimations));
             _animator.SetTrigger("Die");
+
+            AudioHelper.PlayRandomClip2DFromArray(deathSounds, 1f);
         }
     }
 }

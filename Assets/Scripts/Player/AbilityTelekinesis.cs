@@ -15,20 +15,25 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
 
     private Rigidbody telekinesisRB;
     private Transform telekinesisDestination;
-    public ParticleSystem telekinesisParticles;
-    public AudioClip startTelekinesisSound;
-    public AudioClip holdTelekinesisSound;
-    public AudioClip stopTelekinesisSound;
-
-    AudioSource holdTelekinesisSource;
 
     LayerMask grabbableObjectsMask;
+
+    public ParticleSystem telekinesisDestinationParticles;
+    public ParticleSystem telekinesisObjectParticles;
+
+    public AudioClip startTelekinesisSound;
+    public AudioClip holdTelekinesisSound;
+    AudioSource holdTelekinesisSource;
+    public AudioClip stopTelekinesisSound;
+    public AudioClip[] impactSounds;
 
     void Awake()
     {
         telekinesisDestination = transform.Find("Telekinesis Point");
 
         grabbableObjectsMask = LayerMask.GetMask("Grabbable");
+
+        telekinesisDestinationParticles.Stop();
     }
 
     void FixedUpdate()
@@ -85,7 +90,10 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
 
             telekinesisRB.useGravity = false;
             telekinesisRB.angularVelocity = UnityEngine.Random.insideUnitSphere * 10;
-            //telekinesisParticles.Play();
+
+            telekinesisDestinationParticles.Play();
+            Instantiate(telekinesisObjectParticles, telekinesisRB.transform);
+
             AudioHelper.PlayClip2D(startTelekinesisSound, 1f);
             holdTelekinesisSource = AudioHelper.PlayClip2D(holdTelekinesisSound, 0f, false);
             holdTelekinesisSource.pitch /= Mathf.Sqrt(telekinesisRB.mass);
@@ -121,7 +129,9 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
             StartCoroutine("ChangeRigidbodyCollisionMode", telekinesisRB);
             SetOutline(false);
             telekinesisRB = null;
-            //telekinesisParticles.Stop();
+
+            telekinesisDestinationParticles.Stop();
+
             AudioHelper.PlayClip2D(stopTelekinesisSound, 1f);
             Destroy(holdTelekinesisSource.gameObject);
         }
@@ -141,6 +151,13 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
         }
 
         rb.collisionDetectionMode = originalMode;
+
+        var particles = rb.transform.GetComponentInChildren<ParticleSystem>();
+        var main = particles.main;
+        particles.Stop();
+        Destroy(particles.gameObject, main.duration);
+
+        AudioHelper.PlayRandomClip2DFromArray(impactSounds, 1f);
     }
 
     void OnDisable()
