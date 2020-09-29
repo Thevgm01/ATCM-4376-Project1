@@ -6,7 +6,6 @@ using System;
 [RequireComponent(typeof(CharacterController))]
 public class ThirdPersonMovement : MonoBehaviour
 {
-    bool _alive = true;
     bool _isMoving = false;
 
     FootTracker _feet;
@@ -14,8 +13,6 @@ public class ThirdPersonMovement : MonoBehaviour
     CharacterController _controller;
     Animator _animator;
     public Transform _camera;
-
-    public Collider footCollider;
 
     public float speed = 6f;
     public float jumpHeight = 5f;
@@ -31,16 +28,22 @@ public class ThirdPersonMovement : MonoBehaviour
 
     private bool usingTelekinesis = false;
     AbilityTelekinesis _telekinesis;
+    public ParticleSystem telekinesisFlyParticles;
+    AudioSource flyTelekinesisSource;
 
     Health _health;
 
     private Vector3 velocity;
+    private bool flying;
+    private bool beganFlying;
 
     public AudioClip[] jumpSounds;
+    public ParticleSystem landParticles;
 
     public AudioClip[] footstepSounds;
     public float distancePerFootstep;
     float curFootstepDistance;
+    public ParticleSystem runningParticles;
 
     public AudioClip[] hurtSounds;
     public AudioClip[] deathSounds;
@@ -54,7 +57,7 @@ public class ThirdPersonMovement : MonoBehaviour
         _health = GetComponent<Health>();
 
         _health.onDamaged += Damaged;
-        _health.onKilled += Die;
+        _health.onKilled += Died;
     }
 
     void Start()
@@ -66,7 +69,7 @@ public class ThirdPersonMovement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (_alive)
+        if (_health.alive)
         {
             HandleTelekinesis();
             HandleMovement();
@@ -76,20 +79,58 @@ public class ThirdPersonMovement : MonoBehaviour
 
     void HandleTelekinesis()
     {
-        if (Input.GetMouseButtonDown(0))
+        if(!usingTelekinesis)
         {
-            usingTelekinesis = true;
-            _telekinesis.StartCast();
-            _animator.SetTrigger("Telekinesis On");
+            if (Input.GetMouseButtonDown(1))
+            {
+                if (!beganFlying)
+                {
+                    beganFlying = true;
+                    _animator.SetTrigger("Flying");
+
+                    telekinesisFlyParticles.Play();
+                    AudioHelper.PlayClip2D(_telekinesis.startTelekinesisSound, 1f);
+                    flyTelekinesisSource = AudioHelper.PlayClip2D(_telekinesis.holdTelekinesisSound, 0f, 1f, false);
+                    flyTelekinesisSource.loop = true;
+                    StartCoroutine("RaiseFlyVolume");
+                }
+                flying = true;
+
+            }
+            else if (Input.GetMouseButtonUp(1))
+            {
+                flying = false;
+            }
         }
-        else if (Input.GetMouseButtonUp(0))
+        
+        if(!flying)
         {
-            usingTelekinesis = false;
-            _telekinesis.FinishCast();
-            _animator.SetTrigger("Telekinesis Off");
+            if (Input.GetMouseButtonDown(0))
+            {
+                usingTelekinesis = true;
+                _telekinesis.StartCast();
+                _animator.SetTrigger("Telekinesis On");
+            }
+            else if (Input.GetMouseButtonUp(0))
+            {
+                usingTelekinesis = false;
+                _telekinesis.FinishCast();
+                _animator.SetTrigger("Telekinesis Off");
+            }
         }
-        _animator.SetBool("Telekinesis", usingTelekinesis);
+
+        _animator.SetBool("Telekinesis", usingTelekinesis || flying);
     }
+
+    IEnumerator RaiseFlyVolume()
+    {
+        while(flyTelekinesisSource != null && flyTelekinesisSource.volume < 0.25f)
+        {
+            flyTelekinesisSource.volume += 0.0005f;
+            yield return null;
+        }
+    }
+
 
     void HandleMovement()
     {
@@ -122,6 +163,7 @@ public class ThirdPersonMovement : MonoBehaviour
                 if (Input.GetKey(KeyCode.LeftShift))
                 {
                     if (sprintTime < 1) sprintTime += sprintSpeedUp * Time.deltaTime;
+                    if (!runningParticles.isPlaying) runningParticles.Play();
                     _animator.SetBool("Sprint", true);
                 }
 
@@ -135,11 +177,13 @@ public class ThirdPersonMovement : MonoBehaviour
         if (direction.magnitude < 0.1f)
         {
             sprintTime = 0f;
+            if (runningParticles.isPlaying) runningParticles.Stop();
             _animator.SetBool("Sprint", false);
         }
         else if (sprintTime > 0 && (usingTelekinesis || !Input.GetKey(KeyCode.LeftShift)))
         {
             sprintTime -= sprintSpeedUp * Time.deltaTime;
+            if (runningParticles.isPlaying) runningParticles.Stop();
             _animator.SetBool("Sprint", false);
         }
 
@@ -165,49 +209,62 @@ public class ThirdPersonMovement : MonoBehaviour
         float jumpInput = Input.GetAxisRaw("Jump");
         if (_feet.grounded)
         {
-            if (_alive && jumpInput >= 0.1f && velocity.y <= 0f)
+            if (_health.alive && jumpInput >= 0.1f && velocity.y <= 0f)
             {
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y);
                 _animator.SetTrigger("Jump");
                 _animator.SetBool("Landed", false);
+                Instantiate(landParticles, _feet.transform.position, Quaternion.identity);
                 AudioHelper.PlayRandomClip2DFromArray(jumpSounds, 0.5f);
+                AudioHelper.PlayRandomClip2DFromArray(footstepSounds, 1f, 0.3f);
             }
             else if (velocity.y < 0f)
             {
                 if(velocity.y < -1f)
                 {
-                    _animator.ResetTrigger("Jump");
-                    _animator.SetBool("Landed", true);
+                    Instantiate(landParticles, _feet.transform.position, Quaternion.identity);
                     AudioHelper.PlayRandomClip2DFromArray(jumpSounds, 0.5f);
+                    AudioHelper.PlayRandomClip2DFromArray(footstepSounds, 1f, 0.3f);
+                    if (beganFlying)
+                    {
+                        _animator.ResetTrigger("Flying");
+                        telekinesisFlyParticles.Stop();
+                        Destroy(flyTelekinesisSource.gameObject);
+                        beganFlying = false;
+                    }
                 }
+                _animator.ResetTrigger("Jump");
+                _animator.SetBool("Landed", true);
                 velocity.y = 0;
             }
         }
-        velocity.y += Physics.gravity.y * Time.deltaTime;
+        if (flying)
+        {
+            velocity.y -= Physics.gravity.y * Time.deltaTime;
+            _animator.SetBool("Landed", false);
+        }
+        else velocity.y += Physics.gravity.y * Time.deltaTime;
         _animator.SetFloat("Vertical Speed", velocity.y);
     }
 
     void Damaged(int newHP)
     {
-        EZCameraShake.CameraShaker.Instance.ShakeOnce(5, 5, 0, 0.5f);
+        CameraShaker.Shake();
+
         AudioHelper.PlayRandomClip2DFromArray(hurtSounds, 1f);
     }
 
-    void Die()
+    void Died()
     {
-        if (_alive)
-        {
-            _alive = false;
-            _telekinesis.enabled = false;
+        _telekinesis.enabled = false;
 
-            int numDeathAnimations = speed > 0.1f ? 6 : 5;
+        int numDeathAnimations = speed > 0.1f ? 6 : 5;
 
-            EZCameraShake.CameraShaker.Instance.ShakeOnce(5, 5, 0, 0.5f);
+        _animator.SetFloat("Death Animation", UnityEngine.Random.Range(0, numDeathAnimations));
+        _animator.SetTrigger("Die");
 
-            _animator.SetFloat("Death Animation", UnityEngine.Random.Range(0, numDeathAnimations));
-            _animator.SetTrigger("Die");
+        CameraShaker.Shake();
 
-            AudioHelper.PlayRandomClip2DFromArray(deathSounds, 1f);
-        }
+        AudioHelper.PlayRandomClip2DFromArray(deathSounds, 1f);
     }
 }

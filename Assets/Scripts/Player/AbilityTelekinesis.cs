@@ -95,8 +95,7 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
             Instantiate(telekinesisObjectParticles, telekinesisRB.transform);
 
             AudioHelper.PlayClip2D(startTelekinesisSound, 1f);
-            holdTelekinesisSource = AudioHelper.PlayClip2D(holdTelekinesisSound, 0f, false);
-            holdTelekinesisSource.pitch /= Mathf.Sqrt(telekinesisRB.mass);
+            holdTelekinesisSource = AudioHelper.PlayClip2D(holdTelekinesisSound, 0f, 1f / Mathf.Sqrt(telekinesisRB.mass), false);
             holdTelekinesisSource.loop = true;
             StartCoroutine("RaiseHoldVolume");
         }
@@ -157,7 +156,9 @@ public class AbilityTelekinesis : MonoBehaviour, IAbility
         particles.Stop();
         Destroy(particles.gameObject, main.duration);
 
-        AudioHelper.PlayRandomClip2DFromArray(impactSounds, 1f);
+        CameraShaker.Shake();
+
+        AudioHelper.PlayRandomClip2DFromArray(impactSounds, 1f, 1f / Mathf.Sqrt(rb.mass));
     }
 
     void OnDisable()

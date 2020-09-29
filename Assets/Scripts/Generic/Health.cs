@@ -7,6 +7,7 @@ public class Health : MonoBehaviour, IDamageable
 {
     public int maxHealth;
     int curHealth;
+    public bool alive = true;
 
     public float invincibilitySeconds;
     float invincibilityTime;
@@ -36,6 +37,10 @@ public class Health : MonoBehaviour, IDamageable
 
     public void Kill()
     {
-        onKilled?.Invoke();
+        if (alive)
+        {
+            onKilled?.Invoke();
+            alive = false;
+        }
     }
 }
